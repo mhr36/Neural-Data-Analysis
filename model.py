@@ -3,17 +3,17 @@ import scipy.linalg as splinalg
 from utils_for_max import Phi, Euler2fixedpt
 
 
-def get_mu_sigma(W, W2, r, h, xi2, tau):
+def get_mu_sigma(W, W2, r, h, xi, tau):
     # Find net input mean and variance given inputs
-    mu = tau * (W @ r + h)
-    sigma2 = tau * (W2 @ r + xi2)
+    mu = tau * (W @ r) + h
+    sigma2 = tau * (W2 @ r) + xi**2
     
     return mu, np.sqrt(sigma2)
 
 
 def prob_func(P, w, theta):
     # Bernoulli parameter function
-    return P * np.exp((np.cos(2*theta) - 1) / (2*w))
+    return P * np.exp((np.cos(2*theta) - 1) / (2*w))  # [cos(2pi/L * x) -1] / [2pi/L * w] ^2
 
 
 def theta_diff(a, b):
@@ -31,7 +31,7 @@ def block_matrix(V, d):
 
 
 class Model:
-    def __init__(self, N_E=16, N_I=4):
+    def __init__(self, N_E=16, N_I=4):  # 8000, 2000
         # Parameters chosen by us
         N = N_E + N_I
         self.N = N
@@ -39,10 +39,11 @@ class Model:
         self.N_I = N_I
 
         # Parameters for input stage
-        self.g_E = 10
-        self.g_I = 10
+        self.g_E = 1
+        self.g_I = 1
         self.w_ff_E = 1e-1
         self.w_ff_I = 1e-1
+        self.sig_ext = 5
         
         # Auxiliary time constants for excitatory and inhibitory
         T_alpha = 0.5
@@ -52,7 +53,10 @@ class Model:
         # Membrane time constants for excitatory and inhibitory
         tau_alpha = 1
         self.tau_E = 0.01
-        self.tau_I = 0.01 * tau_alpha
+        self.tau_I = 0.01 * tau_alpha        
+        
+        # Zero the state vector
+        self.r = np.zeros(self.N)
         
         # Matrix of J, P, w coefficients for each weight in W
         self.J_full = np.zeros((N, N))
@@ -89,13 +93,10 @@ class Model:
         w_ff = np.concatenate([np.ones(self.N_E) * self.w_ff_E,
                                np.ones(self.N_I) * self.w_ff_I])
         
-        self.h = c * 20 * g * np.exp((np.cos(theta-self.preferred_orientations) - 1) / (2 * np.square(w_ff)))
-        self.xi2 = np.ones(self.N)
+        self.h = c * 20 * g * np.exp((np.cos(2*(theta-self.preferred_orientations)) - 1) / (2 * np.square(w_ff)))
+        self.xi = np.ones(self.N) * self.sig_ext
         
-        # Zero the state vector
-        self.r = np.zeros(self.N)
-        
-        return self.h, self.xi2
+        return self.h, self.xi
         
     def set_parameters(self, log_J, log_P, log_w):
         '''Set the main 3 parameter groups'''
@@ -148,7 +149,7 @@ class Model:
         
         # Define the function to be solved for
         def drdt_func(r):
-            return self.T_inv * (Phi(*get_mu_sigma(self.W, self.W2, r, self.h, self.xi2, self.tau), self.tau) - r)
+            return self.T_inv * (Phi(*get_mu_sigma(self.W, self.W2, r, self.h, self.xi, self.tau), self.tau) - r)
         
         # Solve using Euler
         self.r, did_converge = Euler2fixedpt(drdt_func, self.r)
@@ -156,7 +157,7 @@ class Model:
     
     def r_change(self):
         # DELETE THIS
-        return get_mu_sigma(self.W, self.W2, self.r, self.h, self.xi2, self.tau)
+        return Phi(*get_mu_sigma(self.W, self.W2, self.r, self.h, self.xi, self.tau), self.tau)
         
     def calculate_loss(self):
         '''Loss function from the paper'''
@@ -171,8 +172,8 @@ class Model:
             for j, theta in enumerate(self.orientations):
                 # Set up the model
                 self.set_inputs(c, theta)
-                # Find dixed point
-                if not self.solve_fixed_point:
+                # Find fixed point
+                if not self.solve_fixed_point():
                     raise Exception
                 
                 result[:, i, j] = self.r

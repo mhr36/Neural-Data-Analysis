@@ -146,6 +146,7 @@ def ricciardi_fI(mu, sigma, tau=0.01, Vt=20, Vr=0):
     rate[xp <= 0] = np.exp(-xm[xp <= 0]**2 - np.log(g_ricci(-xm[xp <= 0]) 
                          - np.exp(xp[xp <= 0]**2 - xm[xp <= 0]**2) * g_ricci(-xp[xp <= 0])))
     
+    # rate = 1 / (tau_ref + 1 / rate)
     return rate / tau
 
 
