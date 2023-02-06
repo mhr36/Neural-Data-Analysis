@@ -2,6 +2,9 @@ import numpy as np
 import scipy.linalg as splinalg
 from utils_for_max import Phi, Euler2fixedpt
 
+def circ_gauss(x, w):
+    # Circular Gaussian from 0 to 180 deg
+    return np.exp((np.cos(x * np.pi/90) - 1) / np.square(np.pi/90 * w))  # [cos(2pi/L * x) -1] / [2pi/L * w] ^2
 
 def get_mu_sigma(W, W2, r, h, xi, tau):
     # Find net input mean and variance given inputs
@@ -13,7 +16,7 @@ def get_mu_sigma(W, W2, r, h, xi, tau):
 
 def prob_func(P, w, theta):
     # Bernoulli parameter function
-    return P * np.exp((np.cos(2*theta) - 1) / (2*w))  # [cos(2pi/L * x) -1] / [2pi/L * w] ^2
+    return P * circ_gauss(theta, w)
 
 
 def theta_diff(a, b):
@@ -41,8 +44,8 @@ class Model:
         # Parameters for input stage
         self.g_E = 1
         self.g_I = 1
-        self.w_ff_E = 1e-1
-        self.w_ff_I = 1e-1
+        self.w_ff_E = 30
+        self.w_ff_I = 30
         self.sig_ext = 5
         
         # Auxiliary time constants for excitatory and inhibitory
@@ -53,7 +56,14 @@ class Model:
         # Membrane time constants for excitatory and inhibitory
         tau_alpha = 1
         self.tau_E = 0.01
-        self.tau_I = 0.01 * tau_alpha        
+        self.tau_I = 0.01 * tau_alpha
+        
+        #Refractory periods for exitatory and inhibitory
+        self.tau_ref_E = 0.005
+        self.tau_ref_I = 0.001
+        self.tau_ref = np.concatenate([
+            self.tau_ref_E * np.ones(self.N_E),
+            self.tau_ref_I * np.ones(self.N_I)])
         
         # Zero the state vector
         self.r = np.zeros(self.N)
@@ -78,8 +88,8 @@ class Model:
         self.cell_types = cell_types
         
         # Set the preferred orientations, linearly spaced from 0-pi rad
-        po_E = np.linspace(0, np.pi, num=self.N_E, endpoint=False)
-        po_I = np.linspace(0, np.pi, num=self.N_I, endpoint=False)
+        po_E = np.linspace(0, 180, num=self.N_E, endpoint=False)
+        po_I = np.linspace(0, 180, num=self.N_I, endpoint=False)
         
         self.preferred_orientations = np.concatenate([po_E, po_I])
         
@@ -93,7 +103,7 @@ class Model:
         w_ff = np.concatenate([np.ones(self.N_E) * self.w_ff_E,
                                np.ones(self.N_I) * self.w_ff_I])
         
-        self.h = c * 20 * g * np.exp((np.cos(2*(theta-self.preferred_orientations)) - 1) / (2 * np.square(w_ff)))
+        self.h = c * 20 * g * circ_gauss(theta-self.preferred_orientations, w_ff)
         self.xi = np.ones(self.N) * self.sig_ext
         
         return self.h, self.xi
@@ -149,7 +159,7 @@ class Model:
         
         # Define the function to be solved for
         def drdt_func(r):
-            return self.T_inv * (Phi(*get_mu_sigma(self.W, self.W2, r, self.h, self.xi, self.tau), self.tau) - r)
+            return self.T_inv * (Phi(*get_mu_sigma(self.W, self.W2, r, self.h, self.xi, self.tau), self.tau, tau_ref=self.tau_ref) - r)
         
         # Solve using Euler
         self.r, did_converge = Euler2fixedpt(drdt_func, self.r)
