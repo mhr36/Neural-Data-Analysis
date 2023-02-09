@@ -1,10 +1,17 @@
-import numpy as np
+#import numpy as np
+import jax.numpy as np
+import jax.random as jrand
 import scipy.linalg as splinalg
 from utils_for_max import Phi, Euler2fixedpt
+
+
+prng = jrand.PRNGKey(1)
+
 
 def circ_gauss(x, w):
     # Circular Gaussian from 0 to 180 deg
     return np.exp((np.cos(x * np.pi/90) - 1) / np.square(np.pi/90 * w))  # [cos(2pi/L * x) -1] / [2pi/L * w] ^2
+
 
 def get_mu_sigma(W, W2, r, h, xi, tau):
     # Find net input mean and variance given inputs
@@ -17,6 +24,12 @@ def get_mu_sigma(W, W2, r, h, xi, tau):
 def prob_func(P, w, theta):
     # Bernoulli parameter function
     return P * circ_gauss(theta, w)
+
+
+def random_matrix(probabilities):
+    # Produce continuous Bernoulli substitute
+    rmat = jrand.uniform(prng, probabilities.shape)
+    return 1 / (1 + np.exp(32*(rmat-probabilities)))  # Factor 32 can change
 
 
 def theta_diff(a, b):
@@ -111,8 +124,8 @@ class Model:
     def set_parameters(self, log_J, log_P, log_w):
         '''Set the main 3 parameter groups'''
         # Convert parameters to positive-only form
-        J = np.exp(log_J) * [[1, -1],
-                             [1, -1]]
+        J = np.exp(log_J) * np.array([[1, -1],
+                                     [1, -1]])
         P = np.exp(log_P)
         w = np.exp(log_w)
         
@@ -125,19 +138,14 @@ class Model:
         po_EE = splinalg.toeplitz(self.preferred_orientations[:self.N_E])
         po_II = splinalg.toeplitz(self.preferred_orientations[self.N_E:])
         
-        po_EI = np.absolute(np.subtract.outer(
-            self.preferred_orientations[:self.N_E],
-            self.preferred_orientations[self.N_E:]
-        ))
+        po_EI = self.preferred_orientations[:self.N_E, None] - self.preferred_orientations[None, self.N_E:]
         
         self.preferred_orientations_full = np.block([[po_EE, po_EI],
                                                      [po_EI.T, po_II]])
         
     def generate_C_matrix(self):
         probabilities = prob_func(self.P_full, self.w_full, self.preferred_orientations_full)
-        C = np.random.binomial(1, probabilities)  # This needs to be changed to a continuous form
-        np.fill_diagonal(C, 0)
-        
+        C = random_matrix(probabilities) * (1-np.eye(self.N))
         self.C = C
                 
     def generate_network(self):
