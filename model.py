@@ -13,12 +13,41 @@ def circ_gauss(x, w):
     return np.exp((np.cos(x * np.pi/90) - 1) / np.square(np.pi/90 * w))  # [cos(2pi/L * x) -1] / [2pi/L * w] ^2
 
 
+def kernel(x, y):
+    '''Problem: This operation is now comparing two tuning curves instead of two data points??'''
+    w = 1
+    return np.exp(np.sum(np.square(x - y)) / np.square(np.pi/90 * w))
+
+
 def get_mu_sigma(W, W2, r, h, xi, tau):
     # Find net input mean and variance given inputs
     mu = tau * (W @ r) + h
     sigma2 = tau * (W2 @ r) + xi**2
     
     return mu, np.sqrt(sigma2)
+
+
+def MMD(X, Y):
+    # Maximum Mean Discrepancy
+    N = len(X)
+    M = len(Y)
+    
+    sumXX = 0
+    for i in range N:
+        for j in range(N):
+            sumXX += kernel(X[i], X[j])
+    
+    sumXY = 0
+    for i in range N:
+        for j in range(M):
+            sumXX += kernel(X[i], Y[j])
+    
+    sumYY = 0
+    for i in range M:
+        for j in range(M):
+            sumXX += kernel(Y[i], Y[j])
+    
+    return sumXX/(N*N) + 2*sumXY/(N*M) + sumYY/(M*M)
 
 
 def prob_func(P, w, theta):
@@ -170,20 +199,25 @@ class Model:
             return self.T_inv * (Phi(*get_mu_sigma(self.W, self.W2, r, self.h, self.xi, self.tau), self.tau, tau_ref=self.tau_ref) - r)
         
         # Solve using Euler
-        self.r, did_converge = Euler2fixedpt(drdt_func, self.r)
-        return did_converge
+        self.r, avg_step = Euler2fixedpt(drdt_func, self.r)
+        return avg_step
     
     def r_change(self):
         # DELETE THIS
         return Phi(*get_mu_sigma(self.W, self.W2, self.r, self.h, self.xi, self.tau), self.tau)
         
-    def calculate_loss(self):
+    def calculate_loss(self, data):
         '''Loss function from the paper'''
-        pass
+        loss = MMD(self.tuning_curves, data, gauss_kernel)
+        loss += max(1, self.avg_step) - 1
+        
+        return loss
     
     def get_tuning_curves(self):
         '''With the current network, get tuning curves for all cells'''
         result = np.zeros([self.N, len(self.contrasts), len(self.orientations)])
+        
+        avg_step_sum = 0
         
         # Iterate through all contrasts and orientations
         for i, c in enumerate(self.contrasts):
@@ -191,9 +225,13 @@ class Model:
                 # Set up the model
                 self.set_inputs(c, theta)
                 # Find fixed point
-                if not self.solve_fixed_point():
-                    raise Exception
+                avg_step_sum += self.solve_fixed_point()
+                
+                
                 
                 result[:, i, j] = self.r
+                
+        self.avg_step = avg_step_sum / (len(self.contrasts) * len(self.orientations))
+        self.tuning_curves = result
         return result
         
