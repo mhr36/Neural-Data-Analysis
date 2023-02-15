@@ -33,17 +33,17 @@ def MMD(X, Y):
     M = len(Y)
     
     sumXX = 0
-    for i in range N:
+    for i in range(N):
         for j in range(N):
             sumXX += kernel(X[i], X[j])
     
     sumXY = 0
-    for i in range N:
+    for i in range(N):
         for j in range(M):
             sumXX += kernel(X[i], Y[j])
     
     sumYY = 0
-    for i in range M:
+    for i in range(M):
         for j in range(M):
             sumXX += kernel(Y[i], Y[j])
     
