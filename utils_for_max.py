@@ -1,7 +1,7 @@
 import numpy as np
 #import jax.numpy as np
 
-def Euler2fixedpt(dxdt, x_initial, Nmax=100, Navg=20, dt=0.001, xtol=1e-5, xmin=1e-0):
+def Euler2fixedpt(dxdt, x_initial, Nmax=500, Navg=50, dt=0.001, xtol=1e-5, xmin=1e-0):
     """
     Finds the fixed point of the D-dim ODE set dx/dt = v(x) (where the function v(.) is called dxdt(.) in this code) 
     using the Euler update with sufficiently large dt (to gain in computational time).

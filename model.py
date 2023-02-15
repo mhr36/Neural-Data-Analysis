@@ -47,7 +47,7 @@ def MMD(X, Y):
         for j in range(M):
             sumXX += kernel(Y[i], Y[j])
     
-    return sumXX/(N*N) + 2*sumXY/(N*M) + sumYY/(M*M)
+    return sumXX/(N*N) - 2*sumXY/(N*M) + sumYY/(M*M)
 
 
 def prob_func(P, w, theta):
@@ -82,6 +82,8 @@ class Model:
         self.N = N
         self.N_E = N_E
         self.N_I = N_I
+        
+        self.lambda =1
 
         # Parameters for input stage
         self.g_E = 1
@@ -208,8 +210,7 @@ class Model:
         
     def calculate_loss(self, data):
         '''Loss function from the paper'''
-        loss = MMD(self.tuning_curves, data, gauss_kernel)
-        loss += max(1, self.avg_step) - 1
+        loss = MMD(self.tuning_curves, data, gauss_kernel) + self.lambda * (np.maximum(1, self.avg_step) - 1)
         
         return loss
     
