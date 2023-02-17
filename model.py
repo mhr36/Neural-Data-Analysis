@@ -13,10 +13,10 @@ def circ_gauss(x, w):
     return np.exp((np.cos(x * np.pi/90) - 1) / np.square(np.pi/90 * w))  # [cos(2pi/L * x) -1] / [2pi/L * w] ^2
 
 
-def kernel(x, y):
+def kernel(diff_square, w):
     '''Problem: This operation is now comparing two tuning curves instead of two data points??'''
-    w = 1
-    return np.exp(np.sum(np.square(x - y)) / np.square(np.pi/90 * w))
+    x = diff_square.mean(axis=[2,3])
+    return np.exp(x / np.square(np.pi/90 * w))
 
 
 def get_mu_sigma(W, W2, r, h, xi, tau):
@@ -29,23 +29,15 @@ def get_mu_sigma(W, W2, r, h, xi, tau):
 
 def MMD(X, Y):
     # Maximum Mean Discrepancy
-    N = len(X)
-    M = len(Y)
     
-    sumXX = 0
-    for i in range(N):
-        for j in range(N):
-            sumXX += kernel(X[i], X[j])
+    # DS: Difference Squared
+    DS_XX = np.square(X[None, :, :, :] - X[:, None, : , :])
+    DS_XY = np.square(X[None, :, :, :] - Y[:, None, : , :])
+    DS_YY = np.square(Y[None, :, :, :] - Y[:, None, : , :])
     
-    sumXY = 0
-    for i in range(N):
-        for j in range(M):
-            sumXX += kernel(X[i], Y[j])
-    
-    sumYY = 0
-    for i in range(M):
-        for j in range(M):
-            sumXX += kernel(Y[i], Y[j])
+    sumXX = kernel(DS_XX)
+    sumXY = kernel(DS_XY)
+    sumYY = kernel(DS_YY)
     
     return sumXX/(N*N) - 2*sumXY/(N*M) + sumYY/(M*M)
 
