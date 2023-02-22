@@ -13,7 +13,7 @@ def circ_gauss(x, w):
     return np.exp((np.cos(x * np.pi/90) - 1) / np.square(np.pi/90 * w))  # [cos(2pi/L * x) -1] / [2pi/L * w] ^2
 
 
-def kernel(diff_square, w):
+def kernel(diff_square, w=1):
     '''Problem: This operation is now comparing two tuning curves instead of two data points??'''
     x = diff_square.mean(axis=[2,3])
     return np.exp(x / np.square(np.pi/90 * w))
@@ -29,15 +29,17 @@ def get_mu_sigma(W, W2, r, h, xi, tau):
 
 def MMD(X, Y):
     # Maximum Mean Discrepancy
+    N = len(X)
+    M = len(Y)
     
     # DS: Difference Squared
     DS_XX = np.square(X[None, :, :, :] - X[:, None, : , :])
     DS_XY = np.square(X[None, :, :, :] - Y[:, None, : , :])
     DS_YY = np.square(Y[None, :, :, :] - Y[:, None, : , :])
     
-    sumXX = kernel(DS_XX)
-    sumXY = kernel(DS_XY)
-    sumYY = kernel(DS_YY)
+    sumXX = np.sum(kernel(DS_XX))
+    sumXY = np.sum(kernel(DS_XY))
+    sumYY = np.sum(kernel(DS_YY))
     
     return sumXX/(N*N) - 2*sumXY/(N*M) + sumYY/(M*M)
 
@@ -75,7 +77,7 @@ class Model:
         self.N_E = N_E
         self.N_I = N_I
         
-        self.lambda =1
+        self.lamb =1
 
         # Parameters for input stage
         self.g_E = 1
@@ -202,7 +204,8 @@ class Model:
         
     def calculate_loss(self, data):
         '''Loss function from the paper'''
-        loss = MMD(self.tuning_curves, data, gauss_kernel) + self.lambda * (np.maximum(1, self.avg_step) - 1)
+        # REPLACE FOLLOWING SUBSAMPLING WITH jrand.choice(A, n)
+        loss = MMD(self.tuning_curves[0::100], data[0::100]) + self.lamb * (np.maximum(1, self.avg_step) - 1)
         
         return loss
     
@@ -214,6 +217,7 @@ class Model:
         
         # Iterate through all contrasts and orientations
         for i, c in enumerate(self.contrasts):
+            print('contrasts: '+str(i)+'/'+str(len(self.contrasts)))
             for j, theta in enumerate(self.orientations):
                 # Set up the model
                 self.set_inputs(c, theta)
@@ -222,7 +226,7 @@ class Model:
                 
                 
                 
-                result[:, i, j] = self.r
+                result.at[:, i, j].set(self.r)
                 
         self.avg_step = avg_step_sum / (len(self.contrasts) * len(self.orientations))
         self.tuning_curves = result
