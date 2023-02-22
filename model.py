@@ -19,6 +19,11 @@ def kernel(diff_square, w=1):
     x = diff_square.mean(axis=[2,3])
     return np.exp(x / np.square(np.pi/90 * w))
 
+def kernel(x, y, w=1, axes=[-2,-1]):
+    '''Problem: This operation is now comparing two tuning curves instead of two data points??'''
+    return np.exp( - np.sum((x - y)**2, axis=axes) / (2 * w**2))
+
+
 
 def get_mu_sigma(W, W2, r, h, xi, tau):
     # Find net input mean and variance given inputs
@@ -38,6 +43,7 @@ def MMD(X, Y):
     DS_XY = np.square(X[None, :, :, :] - Y[:, None, : , :])
     DS_YY = np.square(Y[None, :, :, :] - Y[:, None, : , :])
     
+    sumXX = np.sum(kernel(X[None, :, :, :], X[:, None, :, :]))
     sumXX = np.sum(kernel(DS_XX))
     sumXY = np.sum(kernel(DS_XY))
     sumYY = np.sum(kernel(DS_YY))
@@ -200,8 +206,10 @@ class Model:
     
     def solve_for(self, inputs):
         self.set_inputs(*inputs)
-        avg_step = self.solve_fixed_point()
-        return np.concatenate(self.r, np.array([avg_step]))
+        avg_step = 1
+        self.solve_fixed_point()
+        self.r = np.zeros((self.N,))
+        return np.concatenate([self.r, np.array([avg_step])])
     
     def r_change(self):
         # DELETE THIS
@@ -218,7 +226,7 @@ class Model:
         '''With the current network, get tuning curves for all cells'''
         inputs = np.array(np.meshgrid(self.contrasts, self.orientations)).T.reshape([-1,2])
         
-        solves = jmap(self.solve_for, inputs).reshape([len(self.contrasts), len(self.orientations), self.N])
+        solves = jmap(self.solve_for, inputs).reshape([len(self.contrasts), len(self.orientations), self.N+1])
                           
         result = np.moveaxis(solves, 2, 0)   
                 
