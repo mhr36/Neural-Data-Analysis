@@ -1,6 +1,7 @@
 #import numpy as np
 import jax.numpy as np
 import jax.random as jrand
+from jax.lax import map as jmap
 import scipy.linalg as splinalg
 from utils_for_max import Phi, Euler2fixedpt
 
@@ -115,8 +116,8 @@ class Model:
         self.preferred_orientations_full = np.zeros((N, N))
         
         # Contrasts and orientations used in the experiment
-        self.orientations = [0, 15, 30, 45, 60, 75, 90, 105, 120, 135, 150, 165]
-        self.contrasts = [0., 0.0432773, 0.103411, 0.186966, 0.303066, 0.464386, 0.68854, 1.]
+        self.orientations = np.array([0, 15, 30, 45, 60, 75, 90, 105, 120, 135, 150, 165])
+        self.contrasts = np.array([0., 0.0432773, 0.103411, 0.186966, 0.303066, 0.464386, 0.68854, 1.])
         
         self.update_cell_properties()
         
@@ -189,7 +190,6 @@ class Model:
         self.W2 = np.square(self.W)
         
     def solve_fixed_point(self):
-        
         # Define the function to be solved for
         def drdt_func(r):
             return self.T_inv * (Phi(*get_mu_sigma(self.W, self.W2, r, self.h, self.xi, self.tau), self.tau, tau_ref=self.tau_ref) - r)
@@ -197,6 +197,11 @@ class Model:
         # Solve using Euler
         self.r, avg_step = Euler2fixedpt(drdt_func, self.r)
         return avg_step
+    
+    def solve_for(self, inputs):
+        self.set_inputs(*inputs)
+        avg_step = self.solve_fixed_point()
+        return np.concatenate(self.r, np.array([avg_step]))
     
     def r_change(self):
         # DELETE THIS
@@ -208,6 +213,18 @@ class Model:
         loss = MMD(self.tuning_curves[0::100], data[0::100]) + self.lamb * (np.maximum(1, self.avg_step) - 1)
         
         return loss
+                              
+    def get_tuning_curves_new(self):
+        '''With the current network, get tuning curves for all cells'''
+        inputs = np.array(np.meshgrid(self.contrasts, self.orientations)).T.reshape([-1,2])
+        
+        solves = jmap(self.solve_for, inputs).reshape([len(self.contrasts), len(self.orientations), self.N])
+                          
+        result = np.moveaxis(solves, 2, 0)   
+                
+        self.avg_step = np.mean(result[-1])
+        self.tuning_curves = result[:-1]
+        return result
     
     def get_tuning_curves(self):
         '''With the current network, get tuning curves for all cells'''
@@ -226,7 +243,7 @@ class Model:
                 
                 
                 
-                result.at[:, i, j].set(self.r)
+                result = result.at[:, i, j].set(self.r)  # Seems inefficient
                 
         self.avg_step = avg_step_sum / (len(self.contrasts) * len(self.orientations))
         self.tuning_curves = result
