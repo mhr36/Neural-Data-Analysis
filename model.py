@@ -38,17 +38,11 @@ def MMD(X, Y):
     N = len(X)
     M = len(Y)
     
-    # DS: Difference Squared
-    DS_XX = np.square(X[None, :, :, :] - X[:, None, : , :])
-    DS_XY = np.square(X[None, :, :, :] - Y[:, None, : , :])
-    DS_YY = np.square(Y[None, :, :, :] - Y[:, None, : , :])
+    XX = np.mean(kernel(X[None, :, :, :], X[:, None, :, :]))
+    XY = np.mean(kernel(X[None, :, :, :], Y[:, None, :, :]))
+    YY = np.mean(kernel(Y[None, :, :, :], Y[:, None, :, :]))
     
-    sumXX = np.sum(kernel(X[None, :, :, :], X[:, None, :, :]))
-    sumXX = np.sum(kernel(DS_XX))
-    sumXY = np.sum(kernel(DS_XY))
-    sumYY = np.sum(kernel(DS_YY))
-    
-    return sumXX/(N*N) - 2*sumXY/(N*M) + sumYY/(M*M)
+    return XX - 2*XY + YY
 
 
 def prob_func(P, w, theta):

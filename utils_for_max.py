@@ -1,5 +1,5 @@
-import numpy as np
-#import jax.numpy as np
+#import numpy as np
+import jax.numpy as np
 
 def Euler2fixedpt(dxdt, x_initial, Nmax=500, Navg=50, dt=0.001, xtol=1e-5, xmin=1e-0):
     """
@@ -71,6 +71,7 @@ def ricciardi_fI(mu, sigma, tau=0.01, Vt=20, Vr=0, tau_ref=0):
 
     #assert np.isscalar(Vt) and np.isscalar(Vr) and np.isscalar(tau)
     # assert np.isscalar(mu) or np.isscalar(sigma)
+    '''
     if Vt < Vr:
         raise ValueError("Threshold voltage lower than reset!")
     if np.any(sigma < 0.): 
@@ -82,10 +83,11 @@ def ricciardi_fI(mu, sigma, tau=0.01, Vt=20, Vr=0, tau_ref=0):
             assert mu.shape == sigma.shape
 #             mu = np.atleast_2d(mu.ravel()).T      # shape = (mu.size, 1)
 #             sigma = np.atleast_2d(sigma.ravel())  # shape = (1, sigma.size)
-
-    elif sigma == 0:
-        return lif_regular(mu, tau, Vt, Vr)
         
+
+    if sigma == 0:
+        return lif_regular(mu, tau, Vt, Vr)
+        '''
 
     xp = (mu - Vr) / sigma
     xm = (mu - Vt) / sigma
@@ -98,13 +100,33 @@ def ricciardi_fI(mu, sigma, tau=0.01, Vt=20, Vr=0, tau_ref=0):
 #         rate = np.exp(-xm**2 - np.log(g_ricci(-xm) - np.exp(xp**2 - xm**2) * g_ricci(-xp)))
 
     rate = np.zeros_like(xm)
-    rate[xm > 0] = 1 / (f_ricci(xp[xm > 0]) - f_ricci(xm[xm > 0]))
+    '''
+    rate1 = np.zeros_like(xm)
+    
+    
+    rate1[xm > 0] = 1 / (f_ricci(xp[xm > 0]) - f_ricci(xm[xm > 0]))
     inds = (xp > 0) & (xm <= 0)
-    rate[inds] = 1 / ( f_ricci(xp[inds]) + np.exp(xm[inds]**2) * g_ricci(-xm[inds]) )
-    rate[xp <= 0] = np.exp(-xm[xp <= 0]**2 - np.log(g_ricci(-xm[xp <= 0]) 
+    rate1[inds] = 1 / ( f_ricci(xp[inds]) + np.exp(xm[inds]**2) * g_ricci(-xm[inds]) )
+    rate1[xp <= 0] = np.exp(-xm[xp <= 0]**2 - np.log(g_ricci(-xm[xp <= 0]) 
                          - np.exp(xp[xp <= 0]**2 - xm[xp <= 0]**2) * g_ricci(-xp[xp <= 0])))
+    '''
+    
+    xm_pos = xm > 0
+    rate = (rate * (1 - xm_pos)) + np.nan_to_num(xm_pos / (f_ricci(xp) - f_ricci(xm)))
+    
+    inds = (xp > 0) & (xm <= 0)
+    rate = (rate * (1 - inds)) + np.nan_to_num(inds / ( f_ricci(xp) + np.exp(xm**2) * g_ricci(-xm)))
+    
+    
+    xp_neg = xp <= 0
+    rate = (rate * (1 - xp_neg)) + np.nan_to_num(xp_neg * ( np.exp(-xm**2 - np.log(g_ricci(-xm) 
+                         - np.exp(xp**2 - xm**2) * g_ricci(-xp)))))
     
     rate = 1 / (tau_ref + 1 / rate)
+    #rate1 = 1 / (tau_ref + 1 / rate1)
+    
+    #print(rate1, rate)
+    
     return rate / tau
 
 
