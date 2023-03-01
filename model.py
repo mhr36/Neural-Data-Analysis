@@ -220,7 +220,7 @@ class Model:
         '''With the current network, get tuning curves for all cells'''
         inputs = np.array(np.meshgrid(self.contrasts, self.orientations)).T.reshape([-1,2])
         
-        solves = np.array(list(map(self.solve_for, inputs))).reshape([len(self.contrasts), len(self.orientations), self.N+1])
+        solves = np.array(jmap(self.solve_for, inputs)).reshape([len(self.contrasts), len(self.orientations), self.N+1])
                           
         result = np.moveaxis(solves, 2, 0)   
                 
@@ -233,6 +233,9 @@ class Model:
         result = np.zeros([self.N, len(self.contrasts), len(self.orientations)])
         
         avg_step_sum = 0
+        
+        self.contrasts = np.array([0.5])
+        self.orientations = np.array([90])
         
         # Iterate through all contrasts and orientations
         for i, c in enumerate(self.contrasts):
