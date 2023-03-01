@@ -1,4 +1,3 @@
-#import numpy as np
 import jax.numpy as np
 
 def Euler2fixedpt(dxdt, x_initial, Nmax=500, Navg=50, dt=0.001, xtol=1e-5, xmin=1e-0):
@@ -100,17 +99,16 @@ def ricciardi_fI(mu, sigma, tau=0.01, Vt=20, Vr=0, tau_ref=0):
 #         rate = np.exp(-xm**2 - np.log(g_ricci(-xm) - np.exp(xp**2 - xm**2) * g_ricci(-xp)))
 
     rate = np.zeros_like(xm)
+    
     '''
-    rate1 = np.zeros_like(xm)
     
-    
-    rate1[xm > 0] = 1 / (f_ricci(xp[xm > 0]) - f_ricci(xm[xm > 0]))
+    rate[xm > 0] = 1 / (f_ricci(xp[xm > 0]) - f_ricci(xm[xm > 0]))
     inds = (xp > 0) & (xm <= 0)
-    rate1[inds] = 1 / ( f_ricci(xp[inds]) + np.exp(xm[inds]**2) * g_ricci(-xm[inds]) )
-    rate1[xp <= 0] = np.exp(-xm[xp <= 0]**2 - np.log(g_ricci(-xm[xp <= 0]) 
+    rate[inds] = 1 / ( f_ricci(xp[inds]) + np.exp(xm[inds]**2) * g_ricci(-xm[inds]) )
+    rate[xp <= 0] = np.exp(-xm[xp <= 0]**2 - np.log(g_ricci(-xm[xp <= 0]) 
                          - np.exp(xp[xp <= 0]**2 - xm[xp <= 0]**2) * g_ricci(-xp[xp <= 0])))
-    '''
     
+    '''
     xm_pos = xm > 0
     rate = (rate * (1 - xm_pos)) + np.nan_to_num(xm_pos / (f_ricci(xp) - f_ricci(xm)))
     
@@ -126,6 +124,9 @@ def ricciardi_fI(mu, sigma, tau=0.01, Vt=20, Vr=0, tau_ref=0):
     #rate1 = 1 / (tau_ref + 1 / rate1)
     
     #print(rate1, rate)
+    
+    #print(np.mean(rate))
+    #print(np.mean(xm))
     
     return rate / tau
 
